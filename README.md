@@ -1,2 +1,1 @@
-# .github
-Repositorio base para la organización.
+GitHub de Southbridge Insurance Chile.
