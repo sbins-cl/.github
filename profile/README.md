@@ -8,7 +8,7 @@ Te recomendamos acceder a los siguientes documentos.
 - Lineamientos para:
   - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Buenas%20practicas%20para%20el%20desarrollo%20de%20aplicaciones.pdf" target="_blank">desarrollo de aplicaciones</a>
   - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Nueva%20Arquitectura%20SBINS.pdf" target="_blank">desarrollo de api's / back-end</a>
-  - <a href="https://sbins.sharepoint.com/sites/GerenciaTI-Documentacion/SitePages/Tech/Lineamientos/Buenas-Practicas/Desarrollo-BD.aspx" target="_blank">desarrollo de componentes de base de datos</a>
+  - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Buenas%20practicas%20para%20el%20desarrollo%20de%20base%20de%20datos.pdf" target="_blank">desarrollo de componentes de base de datos</a>
   - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Lineamientos%20para%20el%20uso%20de%20ambientes.pdf" target="_blank">uso de ambientes</a>
 
 - Procedimiento DevSecOps:
