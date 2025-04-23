@@ -10,6 +10,7 @@ Te recomendamos acceder a los siguientes documentos.
   - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Buenas%20practicas%20para%20el%20desarrollo%20de%20aplicaciones.pdf" target="_blank">desarrollo de aplicaciones</a>
   - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Nueva%20Arquitectura%20SBINS.pdf" target="_blank">desarrollo de api's / back-end</a>
   - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Buenas%20practicas%20para%20el%20desarrollo%20de%20base%20de%20datos.pdf" target="_blank">desarrollo de componentes de base de datos</a> 🆕
+  - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Lineamientos%20de%20UX%20para%20aplicaciones%20SBINS.pdf" target="_blank">experiencia de usuarios y API's</a> 🆕
   - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Lineamientos%20para%20el%20uso%20de%20ambientes.pdf" target="_blank">uso de ambientes</a>
 
 - Procedimiento DevSecOps:
