@@ -20,7 +20,7 @@ Te recomendamos acceder a los siguientes documentos.
   - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Normalizacion%20proyectos%20dotNet.pdf" target="_blank">normalización de proyectos .net framework</a>
   
 - Integración de OCI vault:
-  - <a onclick="window.open(this.href,'_blank');return false;" href="https://github.com/sbins-cl/docu/blob/master/documentos/Integraci%C3%B3n%20biblioteca%20SBINS%20Vault.pdf" target="_blank">biblioteca vault SBINS para .net</a>
+  - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Integraci%C3%B3n%20biblioteca%20SBINS%20Vault.pdf" target="_blank">biblioteca vault SBINS para .net</a>
   
 - Pronto:
   - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Procedimiento%20para%20el%20despliegue%20de%20componentes%20de%20base%20de%20datos.pdf" target="_blank">liberación automatizada de componentes de bd</a> 🆕
