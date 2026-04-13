@@ -1,0 +1,13 @@
+version: 2
+registries:
+  nuget-feed:
+    type: nuget-feed
+    url: https://github.com
+    token: ${{ secrets.NUGET_TOKEN }} # References your organization-level secret
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    registries:
+      - nuget-feed
