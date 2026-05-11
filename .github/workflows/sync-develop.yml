@@ -1,0 +1,92 @@
+name: sync develop
+run-name: sync merge into develop
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+#-------- Update From Master --------      
+  merge_master_into_develop:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TEST_GITHUB_ACTIONS }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+      - name: Verificar si existe la rama develop
+        id: check_develop
+        run: |
+          if git ls-remote --exit-code --heads origin develop > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "âœ… La rama develop existe. Procediendo con el merge."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "âš ï¸ La rama develop NO existe. Se omite el merge (sin efecto)."
+          fi
+
+      - name: Checkout develop
+        if: steps.check_develop.outputs.exists == 'true'
+        run: |
+          git checkout develop
+          git pull origin develop  # Asegurar que estÃ¡ actualizado
+
+      - name: Merge master into develop
+        if: steps.check_develop.outputs.exists == 'true'
+        run: |
+          git merge origin/master --no-edit
+          git push origin develop
+
+#-------- Failure Notification --------      
+  Failure-Notification:
+    name: Failure Notification
+    runs-on:
+      group: ACTIONS_NODE
+      labels: 40.22
+    needs: [merge_master_into_develop]
+    if: ${{ failure() }}
+    steps:
+      - name: Notificar resultado erroneo 
+        run: |
+          $rawRecipients = '${{ vars.BRANCH_SYNC_NOTIFICATION }}'
+          $destinatario = $rawRecipients -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
+
+          $url = 'http://scl-040o130.sbchile.intr/API_Mail/mail/simple'
+          Write-Output "Attempting to reach: $url"
+          
+          # AÃ±ade informaciÃ³n sobre el estado del pipeline
+          Write-Output "Estado del pipeline"
+          $headers = @{
+            'accept' = '*/*'
+            'Content-Type' = 'application/json'
+          }
+
+          $body = @{
+            'asunto' = "Execution Merge Info: ${{ github.event.repository.name }}"
+            'cuerpo' = "<p>Estimados,</p>
+              <p>El merge hacia develop ha fallado:</p>
+              <ul>
+              <li>Aplicacion:</li>
+                  <li style='list-style-type: none'>&emsp;${{ github.event.repository.name }}</li>
+              <li>Rama:</li>
+                  <li style='list-style-type: none'>&emsp;develop</li>
+              </ul>
+              <p>Favor verificar log en consola de actions.</p>
+              <p><em>Nota: Este correo se genera automaticamente, favor no responder.</em></p>"
+            'emailPara' = @($destinatario) 
+            'nombreUsuario' = 'GitHub Actions'
+            'nombreAplicacion' = '${{ github.event.repository.name }}'
+          } | ConvertTo-Json
+
+          $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body
+          Write-Output $response
