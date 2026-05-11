@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-#-------- Update From Master --------      
+  #-------- Update From Master --------      
   merge_master_into_develop:
     runs-on: ubuntu-latest
     steps:
@@ -29,25 +29,56 @@ jobs:
         run: |
           if git ls-remote --exit-code --heads origin develop > /dev/null 2>&1; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "âœ… La rama develop existe. Procediendo con el merge."
+            echo "✅ La rama develop existe."
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "âš ï¸ La rama develop NO existe. Se omite el merge (sin efecto)."
+            echo "⚠️ La rama develop NO existe. Se omite la sincronización."
           fi
 
-      - name: Checkout develop
+      - name: Merge master into develop (inteligente)
         if: steps.check_develop.outputs.exists == 'true'
         run: |
           git checkout develop
-          git pull origin develop  # Asegurar que estÃ¡ actualizado
+          git pull origin develop --ff-only || true
 
-      - name: Merge master into develop
-        if: steps.check_develop.outputs.exists == 'true'
-        run: |
-          git merge origin/master --no-edit
-          git push origin develop
+          echo "🔄 Intentando merge normal de master → develop..."
 
-#-------- Failure Notification --------      
+          if git merge origin/master --no-edit; then
+            echo "✅ Merge completado sin conflictos."
+            git push origin develop
+          else
+            echo "⚠️ Merge falló con conflictos. Analizando..."
+
+            # Detectar archivos en conflicto
+            CONFLICT_FILES=$(git ls-files -u | sed 's/^.*\t//' | sort -u || echo "")
+
+            if [ -z "$CONFLICT_FILES" ]; then
+              echo "No se detectaron archivos en conflicto."
+              git push origin develop
+            else
+              echo "Archivos en conflicto:"
+              echo "$CONFLICT_FILES"
+
+              # ¿Hay algo más que config/version.json?
+              OTHER_CONFLICTS=$(echo "$CONFLICT_FILES" | grep -v "^config/version\.json$" || echo "")
+
+              if [ -n "$OTHER_CONFLICTS" ]; then
+                echo "❌ ERROR: Hay conflictos en archivos distintos a config/version.json"
+                echo "Merge abortado para proteger los cambios."
+                git merge --abort
+                exit 1
+              else
+                echo "✅ Solo conflicto en config/version.json. Forzando versión de master..."
+                git checkout --theirs config/version.json
+                git add config/version.json
+                git commit -m "chore: resolve config/version.json conflict from master [skip ci]"
+                git push origin develop
+                echo "✅ Conflicto resuelto y merge completado."
+              fi
+            fi
+          fi
+
+  #-------- Failure Notification --------      
   Failure-Notification:
     name: Failure Notification
     runs-on:
@@ -61,28 +92,29 @@ jobs:
           $rawRecipients = '${{ vars.BRANCH_SYNC_NOTIFICATION }}'
           $destinatario = $rawRecipients -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
 
-          $url = 'http://scl-040o130.sbchile.intr/API_Mail/mail/simple'
-          Write-Output "Attempting to reach: $url"
+          $url = '${{ vars.MAIL_API_URL }}'
           
-          # AÃ±ade informaciÃ³n sobre el estado del pipeline
-          Write-Output "Estado del pipeline"
           $headers = @{
             'accept' = '*/*'
             'Content-Type' = 'application/json'
           }
 
+          $cuerpo = @"
+          <p>Estimados,</p>
+          <p>El merge hacia develop ha fallado:</p>
+          <ul>
+          <li>Aplicacion:</li>
+              <li style='list-style-type: none'>&emsp;${{ github.event.repository.name }}</li>
+          <li>Rama:</li>
+              <li style='list-style-type: none'>&emsp;develop</li>
+          </ul>
+          <p>Favor verificar log en consola de actions.</p>
+          <p><em>Nota: Este correo se genera automaticamente, favor no responder.</em></p>
+          "@
+
           $body = @{
             'asunto' = "Execution Merge Info: ${{ github.event.repository.name }}"
-            'cuerpo' = "<p>Estimados,</p>
-              <p>El merge hacia develop ha fallado:</p>
-              <ul>
-              <li>Aplicacion:</li>
-                  <li style='list-style-type: none'>&emsp;${{ github.event.repository.name }}</li>
-              <li>Rama:</li>
-                  <li style='list-style-type: none'>&emsp;develop</li>
-              </ul>
-              <p>Favor verificar log en consola de actions.</p>
-              <p><em>Nota: Este correo se genera automaticamente, favor no responder.</em></p>"
+            'cuerpo' = $cuerpo
             'emailPara' = @($destinatario) 
             'nombreUsuario' = 'GitHub Actions'
             'nombreAplicacion' = '${{ github.event.repository.name }}'
