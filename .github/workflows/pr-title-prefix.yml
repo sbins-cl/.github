@@ -1,0 +1,10 @@
+name: Prefix PR title by target branch
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  call-central-workflow:
+    name: Apply PR title prefix and labels
+    uses: sbins-cl/devops-actions/.github/workflows/prefijo-pull-request.yml@master
+    secrets: inherit
