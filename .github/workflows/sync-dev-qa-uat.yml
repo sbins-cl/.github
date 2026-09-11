@@ -1,0 +1,127 @@
+name: syncronize develop-qa-uat
+run-name: sync merge into develop, qa and uat
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  #-------- Update From Master --------      
+  merge_master_into_target:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target_branch: [develop, qa, uat]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TEST_GITHUB_ACTIONS }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+      - name: Verificar si existe la rama ${{ matrix.target_branch }}
+        id: check_target
+        run: |
+          if git ls-remote --exit-code --heads origin ${{ matrix.target_branch }} > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ La rama ${{ matrix.target_branch }} existe."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️ La rama ${{ matrix.target_branch }} NO existe. Se omite la sincronización."
+          fi
+
+      - name: Merge master into ${{ matrix.target_branch }} (inteligente)
+        if: steps.check_target.outputs.exists == 'true'
+        run: |
+          git checkout ${{ matrix.target_branch }}
+          git pull origin ${{ matrix.target_branch }} --ff-only || true
+
+          echo "🔄 Intentando merge normal de master → ${{ matrix.target_branch }}..."
+
+          if git merge origin/master --no-edit; then
+            echo "✅ Merge completado sin conflictos."
+            git push origin ${{ matrix.target_branch }}
+          else
+            echo "⚠️ Merge falló con conflictos. Analizando..."
+
+            # Detectar archivos en conflicto
+            CONFLICT_FILES=$(git ls-files -u | sed 's/^.*\t//' | sort -u || echo "")
+
+            if [ -z "$CONFLICT_FILES" ]; then
+              echo "No se detectaron archivos en conflicto."
+              git push origin ${{ matrix.target_branch }}
+            else
+              echo "Archivos en conflicto:"
+              echo "$CONFLICT_FILES"
+
+              # ¿Hay algo más que config/version.json?
+              OTHER_CONFLICTS=$(echo "$CONFLICT_FILES" | grep -v "^config/version\.json$" || echo "")
+
+              if [ -n "$OTHER_CONFLICTS" ]; then
+                echo "❌ ERROR: Hay conflictos en archivos distintos a config/version.json"
+                echo "Merge abortado para proteger los cambios."
+                git merge --abort
+                exit 1
+              else
+                echo "✅ Solo conflicto en config/version.json. Forzando versión de master..."
+                git checkout --theirs config/version.json
+                git add config/version.json
+                git commit -m "chore: resolve config/version.json conflict from master [skip ci]"
+                git push origin ${{ matrix.target_branch }}
+                echo "✅ Conflicto resuelto y merge completado."
+              fi
+            fi
+          fi
+
+  #-------- Failure Notification --------      
+  Failure-Notification:
+    name: Failure Notification
+    runs-on:
+      group: ACTIONS_NODE
+      labels: 40.22
+    needs: [merge_master_into_target]
+    if: ${{ failure() }}
+    steps:
+      - name: Notificar resultado erroneo 
+        run: |
+          $rawRecipients = '${{ vars.BRANCH_SYNC_NOTIFICATION }}'
+          $destinatario = $rawRecipients -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
+
+          $url = '${{ vars.MAIL_API_URL }}'
+          
+          $headers = @{
+            'accept' = '*/*'
+            'Content-Type' = 'application/json'
+          }
+
+          $cuerpo = @"
+          <p>Estimados,</p>
+          <p>El merge hacia la rama <strong>${{ matrix.target_branch }}</strong> ha fallado:</p>
+          <ul>
+          <li>Aplicacion:</li>
+              <li style='list-style-type: none'>&emsp;${{ github.event.repository.name }}</li>
+          <li>Rama:</li>
+              <li style='list-style-type: none'>&emsp;${{ matrix.target_branch }}</li>
+          </ul>
+          <p>Favor verificar log en consola de actions.</p>
+          <p><em>Nota: Este correo se genera automaticamente, favor no responder.</em></p>
+          "@
+
+          $body = @{
+            'asunto' = "Execution Merge Info: ${{ github.event.repository.name }} → ${{ matrix.target_branch }}"
+            'cuerpo' = $cuerpo
+            'emailPara' = @($destinatario) 
+            'nombreUsuario' = 'GitHub Actions'
+            'nombreAplicacion' = '${{ github.event.repository.name }}'
+          } | ConvertTo-Json
+
+          $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body
+          Write-Output $response
