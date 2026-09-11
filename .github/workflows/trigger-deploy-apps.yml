@@ -1,0 +1,186 @@
+name: Trigger Deploy Apps
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # ============================================================
+  # 1. Preparación y validaciones
+  # ============================================================
+  prepare:
+    name: Preparar despliegue
+    if: >
+      github.event.review.state == 'approved' &&
+      contains(fromJSON('["develop","qa","uat","master"]'), github.event.pull_request.base.ref)
+    runs-on: ubuntu-latest
+    outputs:
+      configs: ${{ steps.list-configs.outputs.configs }}
+      environment: ${{ steps.set-env.outputs.environment }}
+      source_branch: ${{ steps.set-env.outputs.source_branch }}
+      pr_number: ${{ github.event.pull_request.number }}
+      repo_name: ${{ github.event.repository.name }}
+
+    steps:
+      - name: Checkout de master (para leer /config)
+        uses: actions/checkout@v7
+        with:
+          ref: master
+          path: master-repo
+          fetch-depth: 1
+
+      - name: Validar rama de origen
+        id: validate-branch
+        run: |
+          BASE="${{ github.event.pull_request.base.ref }}"
+          HEAD="${{ github.event.pull_request.head.ref }}"
+
+          echo "Base branch : $BASE"
+          echo "Source branch: $HEAD"
+
+          if [[ "$BASE" != "develop" ]]; then
+            if [[ ! "$HEAD" =~ ^(release|hotfix)/[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "❌ Error: Para la rama destino '$BASE' la rama de origen debe ser release/X.Y.Z o hotfix/X.Y.Z"
+              exit 1
+            fi
+          fi
+          echo "✅ Validación de rama de origen correcta"
+
+      - name: Definir environment y source_branch
+        id: set-env
+        run: |
+          case "${{ github.event.pull_request.base.ref }}" in
+            develop) ENVIRONMENT="DEV" ;;
+            qa)      ENVIRONMENT="QA" ;;
+            uat)     ENVIRONMENT="UAT" ;;
+            master)  ENVIRONMENT="PROD" ;;
+            *)       echo "Rama destino no soportada"; exit 1 ;;
+          esac
+
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "source_branch=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
+          echo "Environment definido: $ENVIRONMENT"
+
+      - name: Listar archivos deploy_config_*.json
+        id: list-configs
+        run: |
+          CONFIG_DIR="master-repo/config"
+          if [ ! -d "$CONFIG_DIR" ]; then
+            echo "❌ No existe el directorio /config en master"
+            echo "configs=[]" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          FILES=$(find "$CONFIG_DIR" -maxdepth 1 -name 'deploy_config_*.json' -type f | sort | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "configs=$FILES" >> $GITHUB_OUTPUT
+          echo "Archivos encontrados:"
+          echo "$FILES" | jq .
+
+  # ============================================================
+  # 2. Despliegue (uno por cada deploy_config_XX.json)
+  # ============================================================
+  deploy:
+    name: Dispatch ${{ matrix.config_file }}
+    needs: prepare
+    if: needs.prepare.outputs.configs != '[]' && needs.prepare.outputs.configs != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config_file: ${{ fromJSON(needs.prepare.outputs.configs) }}
+
+    steps:
+      - name: Checkout de master (para leer el config)
+        uses: actions/checkout@v7
+        with:
+          ref: master
+          path: master-repo
+          fetch-depth: 1
+
+      - name: Parsear config y construir client-payload
+        id: parse
+        run: |
+          CONFIG_FILE="${{ matrix.config_file }}"
+          echo "Procesando: $CONFIG_FILE"
+
+          # ---------- Event Type ----------
+          EVENT_TYPE=$(jq -r '._metadata.event_type // empty' "$CONFIG_FILE")
+
+          if [ -z "$EVENT_TYPE" ] || [ "$EVENT_TYPE" = "null" ]; then
+            TYPE=$(jq -r '.type // empty' "$CONFIG_FILE")
+            case "$TYPE" in
+              "dotnet_webapp")              EVENT_TYPE="Event-Actions-NET_Core" ;;
+              "dotnet_framework_webapp")    EVENT_TYPE="Event-Actions-Framework" ;;
+              "php")                        EVENT_TYPE="Event-Actions-PHP" ;;
+              "python")                     EVENT_TYPE="Event-Actions-Python" ;;
+              "dotnet_winsvc")              EVENT_TYPE="Event-Actions-ServiciosW_NetCore" ;;
+              "dotnet_framework_winsvc")    EVENT_TYPE="Event-Actions-ServiciosW_NetFramework" ;;
+              "angular")                    EVENT_TYPE="Event-Actions-Angular" ;;
+              "file_system")                EVENT_TYPE="Event-Actions-Clone_Repository" ;;
+              *)                            echo "❌ Tipo desconocido: $TYPE"; exit 1 ;;
+            esac
+          fi
+          echo "event_type=$EVENT_TYPE" >> $GITHUB_OUTPUT
+          echo "Event-Type: $EVENT_TYPE"
+
+          # ---------- Label dinámico ----------
+          ENV="${{ needs.prepare.outputs.environment }}"
+          LABEL=$(jq -r --arg e "$ENV" '.matrix.include[0]["label_" + $e] // "10.14"' "$CONFIG_FILE")
+          echo "Label seleccionado para $ENV → $LABEL"
+
+          # ---------- Construir payload final ----------
+          # Se toman todos los valores de .env del JSON y se sobreescriben / agregan los dinámicos
+          jq -c \
+            --arg branch "${{ needs.prepare.outputs.source_branch }}" \
+            --arg env "$ENV" \
+            --arg artifact "${{ needs.prepare.outputs.repo_name }}-${ENV}" \
+            --arg rollback "D:\\\\actions-runner\\\\_work\\\\Rollback\\\\${{ needs.prepare.outputs.repo_name }}" \
+            --arg repo_name "${{ needs.prepare.outputs.repo_name }}" \
+            --arg repository "sbins-cl/${{ needs.prepare.outputs.repo_name }}" \
+            --arg pr_number "${{ needs.prepare.outputs.pr_number }}" \
+            --arg label "$LABEL" \
+            '{
+              env: (
+                .env + {
+                  repository: $repository,
+                  branch: $branch,
+                  artifact: $artifact,
+                  rollback: $rollback,
+                  repo_name: $repo_name,
+                  pr_number: $pr_number
+                }
+              ),
+              matrix: {
+                include: [
+                  {
+                    environment: $env,
+                    label: $label
+                  }
+                ]
+              }
+            }' "$CONFIG_FILE" > payload.json
+
+          echo "Payload generado:"
+          cat payload.json | jq .
+
+          # Guardar como output multiline
+          {
+            echo "payload<<EOF"
+            cat payload.json
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Trigger Workflow in Target Repository 🔫
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.TEST_GITHUB_ACTIONS }}
+          repository: sbins-cl/devops-actions-new
+          event-type: ${{ steps.parse.outputs.event_type }}
+          client-payload: ${{ steps.parse.outputs.payload }}
+
+      - name: Link al repositorio de Actions
+        run: |
+          echo "Repository URL: ${{ github.server_url }}/sbins-cl/devops-actions-new/actions"
