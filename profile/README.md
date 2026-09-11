@@ -2,7 +2,7 @@
 
 Te recomendamos acceder a los siguientes documentos.
 
-- <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Uso%20de%20repositorio%20de%20codigo%20en%20SBINS.pdf">GitFlow SBINS para versionar apps y componentes de bd</a>.
+- <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Uso%20de%20repositorio%20de%20codigo%20en%20SBINS.pdf">Flujo SBINS Flow para versionar apps y componentes de bd</a> 🆕
 - <a href="https://docs.github.com/en/get-started/using-github/github-flow">GitHub flow para otros repositorios</a>.
 - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Lineamientos%20para%20la%20documentaci%C3%B3n%20t%C3%A9cnica%20de%20las%20entregas.pdf">Cómo documentar tus entregas</a> 
   
@@ -13,7 +13,7 @@ Te recomendamos acceder a los siguientes documentos.
   - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Lineamientos%20de%20UX%20para%20aplicaciones%20SBINS.pdf" target="_blank">experiencia de usuarios y API's</a> 
   - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Lineamientos%20para%20el%20uso%20de%20ambientes.pdf" target="_blank">uso de ambientes</a>
   - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Lineamientos%20de%20Log%20para%20aplicaciones%20SBINS.pdf">log de aplicaciones </a> 
-  - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Lineamientos%20de%20auditoria%20para%20aplicaciones%20SBINS.pdf">auditoría de aplicaciones </a> 🆕
+  - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Lineamientos%20de%20auditoria%20para%20aplicaciones%20SBINS.pdf">auditoría de aplicaciones </a> 
 
 - Procedimiento DevSecOps:
   - <a href="https://github.com/sbins-cl/docu/blob/master/documentos/Procedimientos%20DevSecOps.pdf" target="_blank">detalle del procedimiento devsecops</a>
