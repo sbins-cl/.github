@@ -1,0 +1,23 @@
+name: Trigger Deploy Apps
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - uat
+      - master
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # La preparación, el Quality Gate y el dispatch viven en devops-actions-new.
+  trigger:
+    name: Trigger Deploy Apps
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: sbins-cl/devops-actions-new/.github/workflows/trigger-deploy-apps.yml@master
+    secrets: inherit
